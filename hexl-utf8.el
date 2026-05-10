@@ -1,9 +1,10 @@
 ;;; hexl-utf8.el --- UTF-8 decoded text column for hexl-mode -*- lexical-binding: t; -*-
 
-;; Author: hexl-utf8 contributors
+;; Author: jshimizujp <jshimizujp@gmail.com>
 ;; Version: 0.2.0
 ;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: data, files, i18n, hex
+;; URL: https://github.com/fvi-att/hexl-utf.el
 
 ;;; Commentary:
 
@@ -208,20 +209,27 @@ Each plist has :ascii-start :line-end :bytes :byte-offset."
 (defun hexl-utf8--char-display (ch)
   (if (or (< ch #x20) (= ch #x7f)) hexl-utf8-control-char ch))
 
+(defun hexl-utf8--highlight-placeholder-p (byte hl-start hl-end)
+  "Return non-nil if the placeholder at BYTE should be highlighted.
+Placeholders for continuation bytes of a valid UTF-8 character are not the
+displayed character itself, so they are highlighted only for one-byte ranges
+such as invalid bytes."
+  (and hl-start hl-end (= hl-start byte) (= hl-end (1+ byte))))
+
 (defun hexl-utf8--render-line (line decoded &optional hl-start hl-end)
   "Build the propertized display string for LINE using DECODED.
 HL-START..HL-END (exclusive) is a global byte range whose bytes should
 be rendered with `hexl-utf8-cursor-face' merged over the base face.
-A multi-byte character whose byte range overlaps [HL-START, HL-END) is
-highlighted as a whole."
+For a multi-byte UTF-8 character, only the decoded character rendered at
+its leading byte is highlighted; continuation placeholders stay unhighlighted."
   (let* ((offset (plist-get line :byte-offset))
          (bytes  (plist-get line :bytes))
          (n      (length bytes))
          (parts nil)
          (i 0))
-    (cl-flet ((overlap-p
-               (a b)
-               (and hl-start hl-end (< a hl-end) (> b hl-start))))
+    (cl-flet ((highlight-char-p
+               (byte)
+               (and hl-start hl-end (= hl-start byte) (< byte hl-end))))
       (while (< i n)
         (let ((entry (aref decoded (+ offset i))))
           (cond
@@ -229,8 +237,7 @@ highlighted as a whole."
             (let* ((ch   (nth 1 entry))
                    (len  (nth 2 entry))
                    (cs   (+ offset i))
-                   (ce   (+ cs len))
-                   (hlp  (overlap-p cs ce))
+                   (hlp  (highlight-char-p cs))
                    (base (hexl-utf8--char-base-face ch))
                    (face (if hlp
                              `(:inherit (hexl-utf8-cursor-face ,base))
@@ -241,7 +248,8 @@ highlighted as a whole."
               (setq i (+ i len))))
            ((eq entry :cont)
             (let* ((cs   (+ offset i))
-                   (hlp  (overlap-p cs (1+ cs)))
+                   (hlp  (hexl-utf8--highlight-placeholder-p
+                          cs hl-start hl-end))
                    (face (if hlp
                              '(:inherit (hexl-utf8-cursor-face
                                          hexl-utf8-placeholder-face))
@@ -252,7 +260,8 @@ highlighted as a whole."
             (setq i (1+ i)))
            (t
             (let* ((cs   (+ offset i))
-                   (hlp  (overlap-p cs (1+ cs)))
+                   (hlp  (hexl-utf8--highlight-placeholder-p
+                          cs hl-start hl-end))
                    (face (if hlp
                              '(:inherit (hexl-utf8-cursor-face
                                          hexl-utf8-placeholder-face))
