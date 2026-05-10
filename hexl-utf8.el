@@ -1,7 +1,7 @@
 ;;; hexl-utf8.el --- UTF-8 decoded text column for hexl-mode -*- lexical-binding: t; -*-
 
 ;; Author: jshimizujp <jshimizujp@gmail.com>
-;; Version: 0.2.0
+;; Version: 0.1.0
 ;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: data, files, i18n, hex
 ;; URL: https://github.com/fvi-att/hexl-utf.el
